@@ -1,0 +1,14 @@
+.history/**
+.markdownlintrc
+.vscode/**
+.vscode-test/**
+node_modules/**
+src/**
+test/**
+out/**
+**/*.map
+**/tsconfig.json
+**/.gitignore
+**/.eslintignore
+**/.eslintrc.js
+webpack.config.js

@@ -1,0 +1,297 @@
+{
+  "name": "vscode-commandbox",
+  "publisher": "ortus-solutions",
+  "displayName": "CommandBox",
+  "description": "Extension to add support for CommandBox",
+  "version": "1.0.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.43.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ortus-Solutions/vscode-commandbox.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ortus-Solutions/vscode-commandbox/issues"
+  },
+  "icon": "images/commandbox-128-logo.png",
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "clean": "rimraf out dist *.vsix",
+    "webpack": "webpack --mode development",
+    "webpack-dev": "webpack --mode development --watch --info-verbosity verbose",
+    "test-compile": "tsc -p ./",
+    "pack": "vsce package",
+    "publish": "vsce publish",
+    "vscode:prepublish": "webpack --mode production",
+    "lint": "eslint -c .eslintrc.js --ext .ts src/*.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "~17.1.0",
+    "jsonc-parser": "^2.2.1",
+    "minimatch": "~3.0.4",
+    "request-light": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/minimatch": "~3.0.3",
+    "@types/node": "~12.7.12",
+    "@types/vscode": "~1.43.0",
+    "@typescript-eslint/eslint-plugin": "^2.24.0",
+    "@typescript-eslint/parser": "^2.24.0",
+    "clean-webpack-plugin": "3.0.0",
+    "eslint": "^6.8.0",
+    "eslint-plugin-jsdoc": "^22.0.1",
+    "rimraf": "^3.0.2",
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.8.3",
+    "vsce": "^1.74.0",
+    "webpack": "^4.42.0",
+    "webpack-cli": "^3.3.11"
+  },
+  "main": "./dist/extension",
+  "activationEvents": [
+    "workspaceContains:box.json",
+    "workspaceContains:server*.json",
+    "onView:commandbox",
+    "onCommand:commandbox.runScriptFromFolder"
+  ],
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "commandbox",
+          "name": "CommandBox Scripts",
+          "when": "commandbox:showScriptExplorer || config.commandbox.enableScriptExplorer"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "commandbox.runScript",
+        "title": "Run Script",
+        "icon": "$(run)"
+      },
+      {
+        "command": "commandbox.openScript",
+        "title": "Open Script",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "commandbox.runInstall",
+        "title": "Run Install"
+      },
+      {
+        "command": "commandbox.refresh",
+        "title": "Refresh Scripts",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "commandbox.runSelectedScript",
+        "title": "Run Selected Script",
+        "icon": "$(run)"
+      },
+      {
+        "command": "commandbox.runScriptFromFolder",
+        "title": "Run Script in Folder...",
+        "icon": "$(run)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "commandbox.refresh",
+          "when": "false"
+        },
+        {
+          "command": "commandbox.runScript",
+          "when": "false"
+        },
+        {
+          "command": "commandbox.openScript",
+          "when": "false"
+        },
+        {
+          "command": "commandbox.runInstall",
+          "when": "false"
+        },
+        {
+          "command": "commandbox.runSelectedScript",
+          "when": "false"
+        },
+        {
+          "command": "commandbox.runScriptFromFolder",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "commandbox.runSelectedScript",
+          "when": "resourceFilename == 'box.json'",
+          "group": "navigation@+1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "commandbox.runScriptFromFolder",
+          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+          "group": "2_workspace"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "commandbox.refresh",
+          "when": "view == commandbox",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "commandbox.openScript",
+          "when": "view == commandbox && viewItem == boxJSON",
+          "group": "navigation@1"
+        },
+        {
+          "command": "commandbox.runInstall",
+          "when": "view == commandbox && viewItem == boxJSON",
+          "group": "navigation@2"
+        },
+        {
+          "command": "commandbox.openScript",
+          "when": "view == commandbox && viewItem == script",
+          "group": "navigation@1"
+        },
+        {
+          "command": "commandbox.runScript",
+          "when": "view == commandbox && viewItem == script",
+          "group": "navigation@2"
+        },
+        {
+          "command": "commandbox.runScript",
+          "when": "view == commandbox && viewItem == script",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "id": "commandbox",
+      "type": "object",
+      "title": "CommandBox",
+      "properties": {
+        "commandbox.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "scope": "resource",
+          "description": "Controls whether CommandBox scripts should be automatically detected."
+        },
+        "commandbox.exclude": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Configure glob patterns for folders that should be excluded from automatic script detection.",
+          "scope": "resource"
+        },
+        "commandbox.enableScriptExplorer": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Enable an explorer view for CommandBox scripts when there is no top-level 'box.json' file."
+        },
+        "commandbox.enableRunFromFolder": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Enable running CommandBox scripts contained in a folder from the Explorer context menu."
+        },
+        "commandbox.scriptExplorerAction": {
+          "type": "string",
+          "enum": [
+            "open",
+            "run"
+          ],
+          "description": "The default click action used in the scripts explorer: `open` or `run`, the default is `open`.",
+          "markdownDescription": "The default click action used in the scripts explorer: `open` or `run`, the default is `open`.",
+          "scope": "window",
+          "default": "open"
+        },
+        "commandbox.buildNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "build",
+            "compile",
+            "watch"
+          ],
+          "description": "When a task contains this as part of its name, it will be assigned as a build task.",
+          "scope": "resource"
+        },
+        "commandbox.testNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "test"
+          ],
+          "description": "When a task name starts with this, it will be assigned as a test task.",
+          "scope": "resource"
+        },
+        "commandbox.forgebox.fetchOnlinePackageInfo": {
+          "type": "boolean",
+          "description": "Fetch data from ForgeBox to provide auto-completion and information on hover features on dependencies.",
+          "default": true,
+          "scope": "window",
+          "tags": [
+            "usesOnlineServices"
+          ]
+        },
+        "commandbox.forgebox.endpointUrl": {
+          "type": "string",
+          "description": "The URL for the ForgeBox endpoint. Customize for ForgeBox Enterprise.",
+          "default": "https://www.forgebox.io",
+          "scope": "window"
+        }
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "server*.json",
+        "url": "./resources/schemas/server.schema.json"
+      },
+      {
+        "fileMatch": "box.json",
+        "url": "./resources/schemas/box.schema.json"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "commandbox",
+        "required": [
+          "script"
+        ],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The CommandBox script to customize."
+          },
+          "path": {
+            "type": "string",
+            "description": "The path to the folder of the box.json file that provides the script. Can be omitted."
+          }
+        }
+      }
+    ]
+  }
+}
