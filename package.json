@@ -3,10 +3,10 @@
   "publisher": "ortus-solutions",
   "displayName": "CommandBox",
   "description": "Extension to add support for CommandBox",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.43.0"
+    "vscode": "^1.44.0"
   },
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
     "lint": "eslint -c .eslintrc.js --ext .ts src/*.ts"
   },
   "dependencies": {
-    "@octokit/rest": "~17.1.0",
+    "@octokit/rest": "~17.2.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "~3.0.4",
     "request-light": "^0.3.0"
@@ -38,17 +38,17 @@
   "devDependencies": {
     "@types/minimatch": "~3.0.3",
     "@types/node": "~12.7.12",
-    "@types/vscode": "~1.43.0",
-    "@typescript-eslint/eslint-plugin": "^2.24.0",
-    "@typescript-eslint/parser": "^2.24.0",
+    "@types/vscode": "~1.44.0",
+    "@typescript-eslint/eslint-plugin": "^2.27.0",
+    "@typescript-eslint/parser": "^2.27.0",
     "clean-webpack-plugin": "3.0.0",
     "eslint": "^6.8.0",
     "eslint-plugin-jsdoc": "^22.1.0",
     "rimraf": "^3.0.2",
-    "ts-loader": "^6.2.1",
+    "ts-loader": "^6.2.2",
     "typescript": "^3.8.3",
-    "vsce": "^1.74.0",
-    "webpack": "^4.42.0",
+    "vsce": "^1.75.0",
+    "webpack": "^4.42.1",
     "webpack-cli": "^3.3.11"
   },
   "main": "./dist/extension",
@@ -267,7 +267,10 @@
     },
     "jsonValidation": [
       {
-        "fileMatch": "server*.json",
+        "fileMatch": [
+          "server.json",
+          "server-*.json"
+        ],
         "url": "./resources/schemas/server.schema.json"
       },
       {

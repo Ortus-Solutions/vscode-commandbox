@@ -72,11 +72,9 @@ export class BoxScriptHoverProvider implements HoverProvider {
 	}
 
 	public runScriptFromHover(args: { script: string; documentUri: Uri }) {
-		// TODO: Remove this after v1.44
-		const documentUri = Uri.file(args.documentUri.fsPath);
-		const folder = workspace.getWorkspaceFolder(documentUri);
+		const folder = workspace.getWorkspaceFolder(args.documentUri);
 		if (folder) {
-			const task = createTask(args.script, `run-script ${args.script}`, folder, documentUri);
+			const task = createTask(args.script, `run-script ${args.script}`, folder, args.documentUri);
 			tasks.executeTask(task);
 		}
 	}

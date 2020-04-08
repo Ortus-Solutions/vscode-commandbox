@@ -87,14 +87,9 @@ class BoxScript extends TreeItem {
 		this.command = commandList[command];
 
 		if (task.group && task.group === TaskGroup.Clean) {
-			// TODO: Replace with wrench-subaction after v1.44
-			this.iconPath = {
-				light: context.asAbsolutePath(path.join("resources", "light", "prepostscript.svg")),
-				dark: context.asAbsolutePath(path.join("resources", "dark", "prepostscript.svg"))
-			};
+			this.iconPath = new ThemeIcon("wrench-subaction");
 		} else {
-			// TODO: Replace with wrench after v1.44
-			this.iconPath = new ThemeIcon("symbol-property");
+			this.iconPath = new ThemeIcon("wrench");
 		}
 	}
 

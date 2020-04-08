@@ -15,7 +15,7 @@
 		"moduleResolution": "node"
 	},
 	"include": [
-		"src/**/*.ts",
+		"./src/**/*.ts",
 		"./node_modules/vscode/vscode.d.ts",
 		"./node_modules/vscode/lib/*"
 	]
