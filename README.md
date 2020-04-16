@@ -83,3 +83,7 @@ The extension also fetches data from ForgeBox to provide auto-completion and inf
 - `commandbox.testNames` - When a VS Code task name starts with this, it will be assigned as a test task. [*Default*: `["test"]`]
 - `commandbox.forgebox.fetchOnlinePackageInfo` - Fetch data from ForgeBox to provide auto-completion and information on hover features on dependencies. [*Default*: `true`]
 - `commandbox.forgebox.endpointUrl` - The URL for the ForgeBox endpoint. Customize for ForgeBox Enterprise. [*Default*: `https://www.forgebox.io`]
+
+## Contributing
+
+See [CONTRIBUTING.md](/CONTRIBUTING.md)
