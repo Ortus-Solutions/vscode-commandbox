@@ -1,12 +1,12 @@
 {
-    "[markdown]": {
-        "files.trimTrailingWhitespace": false
-    },
-    "files.trimTrailingWhitespace": true,
-    "search.exclude": {
-        "dist": true,
-        "out": true
-    },
-    "typescript.tsc.autoDetect": "off",
-    "typescript.tsdk": "node_modules\\typescript\\lib"
+	"[markdown]": {
+		"files.trimTrailingWhitespace": false
+	},
+	"files.trimTrailingWhitespace": true,
+	"search.exclude": {
+		"dist": true,
+		"out": true
+	},
+	"typescript.tsc.autoDetect": "off",
+	"typescript.tsdk": "node_modules\\typescript\\lib"
 }

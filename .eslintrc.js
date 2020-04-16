@@ -12,6 +12,15 @@ module.exports = {
 		"@typescript-eslint"
 	],
 	"rules": {
+		"array-bracket-spacing": [
+			"error",
+			"always",
+			{
+				"singleValue": true,
+				"arraysInArrays": true,
+				"objectsInArrays": true
+			}
+		],
 		"curly": "error",
 		"eqeqeq": [
 			"error",
@@ -21,13 +30,49 @@ module.exports = {
 			"error",
 			"tab"
 		],
+		"key-spacing": [
+			"error",
+			{
+				"singleLine": {
+					"beforeColon": false,
+					"afterColon": true
+				},
+				"multiLine": {
+					"beforeColon": true,
+					"afterColon": true,
+					"align": "colon"
+				}
+			}
+		],
+		"keyword-spacing": [
+			"error",
+			{
+				"after": true,
+				"before": true
+			}
+		],
 		"new-parens": "error",
 		"no-redeclare": "error",
-		"no-trailing-spaces": "error",
+		"no-trailing-spaces": [
+			"error",
+			{
+				"skipBlankLines": false,
+				"ignoreComments": false
+			}
+		],
 		"no-unused-expressions": "warn",
 		"no-var": "error",
+		"object-curly-spacing": [
+			"error",
+			"always",
+			{
+				"objectsInObjects": true,
+				"arraysInObjects": true
+			}
+		],
 		"prefer-arrow-callback": "error",
 		"prefer-const": "warn",
+		"prefer-promise-reject-errors": "off",
 		"quotes": [
 			"error",
 			"double",
@@ -43,10 +88,12 @@ module.exports = {
 		"space-before-function-paren": [
 			"error",
 			{
-				"anonymous": "always",
+				"anonymous": "never",
+				"asyncArrow": 'never',
 				"named": "never"
 			}
 		],
+		"space-in-parens": ["error", "always"],
 		"spaced-comment": "error",
 		"jsdoc/check-alignment": "error",
 		"jsdoc/check-indentation": "error",
