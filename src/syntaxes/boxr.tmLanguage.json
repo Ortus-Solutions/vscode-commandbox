@@ -1,0 +1,50 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "CommandBox Recipe",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.command.boxr",
+					"match": "\\b(echo|env|set|testbox|exit|task)\\b"
+				},
+				{
+					"name": "keyword.function.boxr",
+					"match": "\\b(#\\w)\\b"
+				},
+				{
+					"name": "comment.line.boxr",
+					"match": "# .*"
+				},
+				{
+					"name": "keyword.function.boxr",
+					"match": "#[a-zA-Z]+"
+				},
+				{
+					"name": "keyword.variable.boxr",
+					"match": "\\$\\{(.*)\\}"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.boxr",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.boxr",
+					"match": "\\\\."
+				}
+			]
+		}
+	},
+	"scopeName": "source.boxr"
+}
