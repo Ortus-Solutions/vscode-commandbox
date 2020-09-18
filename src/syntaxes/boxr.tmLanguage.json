@@ -14,7 +14,8 @@
 			"patterns": [
 				{
 					"name": "keyword.command.boxr",
-					"match": "\\b(echo|env|set|testbox|exit|task)\\b"
+					"match": "\\b(exit|assertEqual|assertTrue|audit|browse|cat|cd|cfformat|cflint|cfml|checksum|clear|cp|delete|dir|echo|edit|execute|fixinator|forEach|help|history|info|mkdir|mv|norris|pathExists|prompt|pwd|quit|recipe|repl|run|scan-package|sed|sort|system-colors|system-log|tail|tokenReplace|touch|unique|upgrade|version|artifacts|cachebox|cfconfig|chuck|coldbox|config|contentbox|endpoint|env|forgebox|fr|fusionreactor|game|githooks|java|logbox|package|propertyFile|server|task|testbox|utils|wirebox)\\b"
+
 				},
 				{
 					"name": "keyword.function.boxr",
