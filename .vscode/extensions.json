@@ -3,6 +3,6 @@
 		"dbaeumer.vscode-eslint",
 		"DavidAnson.vscode-markdownlint",
 		"eg2.vscode-npm-script",
-		"eamodio.tsl-problem-matcher"
+		"amodio.tsl-problem-matcher"
 	]
 }
