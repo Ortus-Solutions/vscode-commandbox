@@ -443,10 +443,17 @@
 					}
 				},
 				"defaultGrammar": {
-					"title": "Migrations Directory",
-					"description": "Location of generated migration files that migration commands will use.",
+					"title": "Default Grammar",
+					"description": "Name of the qb service to use for grammar.",
 					"type": "string",
-					"default": "AutoDiscover@qb"
+					"enum": [
+						"AutoDiscover.cfc",
+						"BaseGrammar.cfc",
+						"MySQLGrammar.cfc",
+						"OracleGrammar.cfc",
+						"PostgresGrammar.cfc",
+						"SqlServerGrammar.cfc"
+					]
 				}
 			}
 		}
