@@ -447,12 +447,12 @@
 					"description": "Name of the qb service to use for grammar.",
 					"type": "string",
 					"enum": [
-						"AutoDiscover.cfc",
-						"BaseGrammar.cfc",
-						"MySQLGrammar.cfc",
-						"OracleGrammar.cfc",
-						"PostgresGrammar.cfc",
-						"SqlServerGrammar.cfc"
+						"AutoDiscover@qb",
+						"BaseGrammar@qb",
+						"MySQLGrammar@qb",
+						"OracleGrammar@qb",
+						"PostgresGrammar@qb",
+						"SqlServerGrammar@qb"
 					]
 				}
 			}
