@@ -404,6 +404,58 @@
 					}
 				}
 			}
+		},
+		"cfmigrations": {
+			"title": "CF Migrations",
+			"description": "Configuration object for CF Migration database settings.",
+			"type": "object",
+			"properties": {
+				"migrationsDirectory": {
+					"title": "Migrations Directory",
+					"description": "Location of generated migration files that migration commands will use.",
+					"type": "string"
+				},
+				"schema": {
+					"title": "Database Schema",
+					"type": "string"
+				},
+				"connectionInfo": {
+					"title": "Migrations Directory",
+					"description": "Location of generated migration files that migration commands will use.",
+					"type": "object",
+					"properties": {
+						"password": {
+							"title": "Database Password",
+							"type": "string"
+						},
+						"connectionString": {
+							"title": "Database Connection String",
+							"type": "string"
+						},
+						"class": {
+							"title": "Database class",
+							"type": "string"
+						},
+						"username": {
+							"title": "Database Username",
+							"type": "string"
+						}
+					}
+				},
+				"defaultGrammar": {
+					"title": "Default Grammar",
+					"description": "Name of the qb service to use for grammar.",
+					"type": "string",
+					"enum": [
+						"AutoDiscover@qb",
+						"BaseGrammar@qb",
+						"MySQLGrammar@qb",
+						"OracleGrammar@qb",
+						"PostgresGrammar@qb",
+						"SqlServerGrammar@qb"
+					]
+				}
+			}
 		}
 	}
 }
