@@ -1,12 +1,12 @@
 import * as path from "path";
 import {
 	Event, EventEmitter, ExtensionContext, Task,
-	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, window, workspace, tasks, Selection, TaskGroup
+	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
+	WorkspaceFolder, commands, window, workspace, tasks, Selection, TaskGroup, TextDocumentShowOptions, Range, Position, Location
 } from "vscode";
-import { visit, JSONVisitor } from "jsonc-parser";
+import { readScripts } from "./readScripts";
 import {
-	BoxTaskDefinition, isWorkspaceFolder, getTaskName, createTask, isAutoDetectionEnabled
+	BoxTaskDefinition, isWorkspaceFolder, getTaskName, createTask, getPackageManager, BoxTaskProvider, TaskWithLocation
 } from "./tasks";
 
 class Folder extends TreeItem {
@@ -21,7 +21,7 @@ class Folder extends TreeItem {
 		this.iconPath = ThemeIcon.Folder;
 	}
 
-	addPackage( boxJson: BoxJSON ) {
+	addPackage( boxJson: BoxJSON ): void {
 		this.packages.push( boxJson );
 	}
 }
@@ -33,7 +33,7 @@ class BoxJSON extends TreeItem {
 	folder: Folder;
 	scripts: BoxScript[] = [];
 
-	static getLabel( _folderName: string, relativePath: string ): string {
+	static getLabel( relativePath: string ): string {
 		if ( relativePath.length > 0 ) {
 			return path.join( relativePath, packageName );
 		}
@@ -41,7 +41,7 @@ class BoxJSON extends TreeItem {
 	}
 
 	constructor( folder: Folder, relativePath: string ) {
-		super( BoxJSON.getLabel( folder.label!, relativePath ), TreeItemCollapsibleState.Expanded );
+		super( BoxJSON.getLabel( relativePath ), TreeItemCollapsibleState.Expanded );
 		this.folder = folder;
 		this.path = relativePath;
 		this.contextValue = "boxJSON";
@@ -53,7 +53,7 @@ class BoxJSON extends TreeItem {
 		this.iconPath = ThemeIcon.File;
 	}
 
-	addScript( script: BoxScript ) {
+	addScript( script: BoxScript ): void {
 		this.scripts.push( script );
 	}
 }
@@ -63,16 +63,26 @@ type ExplorerCommands = "open" | "run";
 class BoxScript extends TreeItem {
 	task: Task;
 	package: BoxJSON;
+	taskLocation?: Location;
 
-	constructor( context: ExtensionContext, boxJson: BoxJSON, task: Task ) {
-		super( task.name, TreeItemCollapsibleState.None );
+	constructor( _context: ExtensionContext, boxJson: BoxJSON, task: TaskWithLocation ) {
+		const name = boxJson.path.length > 0
+			? task.task.name.substring( 0, task.task.name.length - boxJson.path.length - 2 )
+			: task.task.name;
+		super( name, TreeItemCollapsibleState.None );
+		this.taskLocation = task.location;
 		const command: ExplorerCommands = workspace.getConfiguration( "commandbox" ).get<ExplorerCommands>( "scriptExplorerAction", "open" );
 
 		const commandList = {
 			"open" : {
 				title     : "Edit Script",
-				command   : "commandbox.openScript",
-				arguments : [ this ]
+				command   : "vscode.open",
+				arguments : [
+					this.taskLocation?.uri,
+					this.taskLocation ? {
+						selection : new Range( this.taskLocation.range.start, this.taskLocation.range.start )
+					} as TextDocumentShowOptions : undefined
+				]
 			},
 			"run" : {
 				title     : "Run Script",
@@ -83,13 +93,17 @@ class BoxScript extends TreeItem {
 		this.contextValue = "script";
 
 		this.package = boxJson;
-		this.task = task;
+		this.task = task.task;
 		this.command = commandList[command];
 
-		if ( task.group && task.group === TaskGroup.Clean ) {
+		if ( this.task.group === TaskGroup.Clean ) {
 			this.iconPath = new ThemeIcon( "wrench-subaction" );
 		} else {
 			this.iconPath = new ThemeIcon( "wrench" );
+		}
+		if ( this.task.detail ) {
+			this.tooltip = this.task.detail;
+			this.description = this.task.detail;
 		}
 	}
 
@@ -105,54 +119,41 @@ class NoScripts extends TreeItem {
 	}
 }
 
+type TaskTree = Folder[] | BoxJSON[] | NoScripts[];
+
 export class BoxScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
-	private taskTree: Folder[] | BoxJSON[] | NoScripts[] | null = null;
+	private taskTree: TaskTree | null = null;
 	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor( context: ExtensionContext ) {
+	constructor( private context: ExtensionContext, public taskProvider: BoxTaskProvider ) {
 		const subscriptions = context.subscriptions;
 		this.extensionContext = context;
 		subscriptions.push( commands.registerCommand( "commandbox.runScript", this.runScript, this ) );
 		subscriptions.push( commands.registerCommand( "commandbox.openScript", this.openScript, this ) );
-		subscriptions.push( commands.registerCommand( "commandbox.refresh", this.refresh, this ) );
 		subscriptions.push( commands.registerCommand( "commandbox.runInstall", this.runInstall, this ) );
 	}
 
 	private async runScript( script: BoxScript ): Promise<void> {
+		// Call getPackageManager to trigger the multiple lock files warning.
+		getPackageManager( this.context, script.getFolder().uri );
 		tasks.executeTask( script.task );
 	}
 
-	private findScript( document: TextDocument, script?: BoxScript ): number {
-		let scriptOffset = 0;
-		let inScripts = false;
+	private findScriptPosition( document: TextDocument, script?: BoxScript ): Position {
+		const scripts = readScripts( document );
+		if ( !scripts ) {
+			return undefined;
+		}
 
-		const visitor: JSONVisitor = {
-			onError() {
-				return scriptOffset;
-			},
-			onObjectEnd() {
-				if ( inScripts ) {
-					inScripts = false;
-				}
-			},
-			onObjectProperty( property: string, offset: number, _length: number ) {
-				if ( property === "scripts" ) {
-					inScripts = true;
-					if ( !script ) { // select the script section
-						scriptOffset = offset;
-					}
-				} else if ( inScripts && script ) {
-					const label = getTaskName( property, script.task.definition.path );
-					if ( script.task.name === label ) {
-						scriptOffset = offset;
-					}
-				}
-			}
-		};
-		visit( document.getText(), visitor );
-		return scriptOffset;
+		if ( !script ) {
+			return scripts.location.range.start;
+		}
+
+		const found = scripts.scripts.find( s => getTaskName( s.name, script.task.definition.path ) === script.task.name );
+
+		return found?.nameRange.start;
 	}
 
 	private async runInstall( selection: BoxJSON ): Promise<void> {
@@ -163,7 +164,7 @@ export class BoxScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if ( !uri ) {
 			return;
 		}
-		const task = createTask( "install", "install", selection.folder.workspaceFolder, uri, [] );
+		const task = await createTask( getPackageManager( this.context, selection.folder.workspaceFolder.uri ), "install", [ "install" ], selection.folder.workspaceFolder, uri, undefined, [] );
 		tasks.executeTask( task );
 	}
 
@@ -178,14 +179,13 @@ export class BoxScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 		const document: TextDocument = await workspace.openTextDocument( uri );
-		const offset = this.findScript( document, selection instanceof BoxScript ? selection : undefined );
-		const position = document.positionAt( offset );
+		const position = this.findScriptPosition( document, selection instanceof BoxScript ? selection : undefined ) || new Position( 0, 0 );
 		await window.showTextDocument( document, { preserveFocus: true, selection: new Selection( position, position ) } );
 	}
 
-	public refresh() {
+	public refresh(): void {
 		this.taskTree = null;
-		this._onDidChangeTreeData.fire();
+		this._onDidChangeTreeData.fire( null );
 	}
 
 	getTreeItem( element: TreeItem ): TreeItem {
@@ -210,16 +210,10 @@ export class BoxScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren( element?: TreeItem ): Promise<TreeItem[]> {
 		if ( !this.taskTree ) {
-			const taskItems = await tasks.fetchTasks( { type: "commandbox" } );
+			const taskItems = await this.taskProvider.tasksWithLocation;
 			if ( taskItems ) {
-				this.taskTree = this.buildTaskTree( taskItems );
-				if ( this.taskTree.length === 0 ) {
-					let message = "No scripts found.";
-					if ( !isAutoDetectionEnabled() ) {
-						message = 'The setting "npm.autoDetect" is "off".';
-					}
-					this.taskTree = [ new NoScripts( message ) ];
-				}
+				const taskTree = this.buildTaskTree( taskItems );
+				this.taskTree = this.sortTaskTree( taskTree );
 			}
 		}
 		if ( element instanceof Folder ) {
@@ -247,23 +241,56 @@ export class BoxScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return fullName === task.name;
 	}
 
-	private buildTaskTree( tasks: Task[] ): Folder[] | BoxJSON[] | NoScripts[] {
-		const folders: Map<String, Folder> = new Map();
-		const packages: Map<String, BoxJSON> = new Map();
+	private getTaskTreeItemLabel( taskTreeLabel: string | TreeItemLabel | undefined ): string {
+		if ( taskTreeLabel === undefined ) {
+			return "";
+		}
+
+		if ( typeof taskTreeLabel === "string" ) {
+			return taskTreeLabel;
+		}
+
+		return taskTreeLabel.label;
+	}
+
+	private sortTaskTree( taskTree: TaskTree ): TaskTree {
+		return taskTree.sort( ( first: TreeItem, second: TreeItem ) => {
+			const firstLabel = this.getTaskTreeItemLabel( first.label );
+			const secondLabel = this.getTaskTreeItemLabel( second.label );
+			return firstLabel.localeCompare( secondLabel );
+		} );
+	}
+
+	private buildTaskTree( tasks: TaskWithLocation[] ): TaskTree {
+		const folders: Map<string, Folder> = new Map();
+		const packages: Map<string, BoxJSON> = new Map();
 
 		let folder = null;
 		let boxJson = null;
 
+		const excludeConfig: Map<string, RegExp[]> = new Map();
+
 		tasks.forEach( each => {
-			if ( isWorkspaceFolder( each.scope ) && !this.isInstallTask( each ) ) {
-				folder = folders.get( each.scope.name );
+			const location = each.location;
+			if ( location && !excludeConfig.has( location.uri.toString() ) ) {
+				const regularExpressionsSetting = workspace.getConfiguration( "commandbox", location.uri ).get<string[]>( "scriptExplorerExclude", [] );
+				excludeConfig.set( location.uri.toString(), regularExpressionsSetting?.map( value => RegExp( value ) ) );
+			}
+			const regularExpressions = ( location && excludeConfig.has( location.uri.toString() ) ) ? excludeConfig.get( location.uri.toString() ) : undefined;
+
+			if ( regularExpressions?.some( ( regularExpression ) => ( each.task.definition as BoxTaskDefinition ).script.match( regularExpression ) ) ) {
+				return;
+			}
+
+			if ( isWorkspaceFolder( each.task.scope ) && !this.isInstallTask( each.task ) ) {
+				folder = folders.get( each.task.scope.name );
 				if ( !folder ) {
-					folder = new Folder( each.scope );
-					folders.set( each.scope.name, folder );
+					folder = new Folder( each.task.scope );
+					folders.set( each.task.scope.name, folder );
 				}
-				const definition: BoxTaskDefinition = <BoxTaskDefinition>each.definition;
-				const relativePath = definition.path ? definition.path : "";
-				const fullPath = path.join( each.scope.name, relativePath );
+				const definition = each.task.definition as BoxTaskDefinition;
+				const relativePath = definition.path ?? "";
+				const fullPath = path.join( each.task.scope.name, relativePath );
 				boxJson = packages.get( fullPath );
 				if ( !boxJson ) {
 					boxJson = new BoxJSON( folder, relativePath );

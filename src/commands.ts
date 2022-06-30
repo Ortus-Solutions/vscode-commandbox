@@ -3,27 +3,29 @@ import {
 	detectBoxScriptsForFolder, findScriptAtPosition, runScript, FolderTaskItem
 } from "./tasks";
 
-export function runSelectedScript() {
+export function runSelectedScript( context: vscode.ExtensionContext ): void {
 	const editor = vscode.window.activeTextEditor;
 	if ( !editor ) {
 		return;
 	}
 	const document = editor.document;
 	const contents = document.getText();
-	const selection = editor.selection;
-	const offset = document.offsetAt( selection.anchor );
-
-	const script = findScriptAtPosition( contents, offset );
+	const script = findScriptAtPosition( editor.document, contents, editor.selection.anchor );
 	if ( script ) {
-		runScript( script, document );
+		runScript( context, script, document );
 	} else {
 		const message = "Could not find a valid CommandBox script at the selection.";
 		vscode.window.showErrorMessage( message );
 	}
 }
 
-export async function selectAndRunScriptFromFolder( selectedFolder: vscode.Uri ) {
-	const taskList: FolderTaskItem[] = await detectBoxScriptsForFolder( selectedFolder );
+export async function selectAndRunScriptFromFolder( context: vscode.ExtensionContext, selectedFolders: vscode.Uri[] ): Promise<void> {
+	if ( selectedFolders.length === 0 ) {
+		return;
+	}
+	const selectedFolder = selectedFolders[0];
+
+	const taskList: FolderTaskItem[] = await detectBoxScriptsForFolder( context, selectedFolder );
 
 	if ( taskList?.length > 0 ) {
 		const quickPick = vscode.window.createQuickPick<FolderTaskItem>();
@@ -52,4 +54,10 @@ export async function selectAndRunScriptFromFolder( selectedFolder: vscode.Uri )
 	} else {
 		vscode.window.showInformationMessage( `No CommandBox scripts found in ${selectedFolder.fsPath}`, { modal: true } );
 	}
+}
+
+export async function turnAutoDetectOn(): Promise<void> {
+	const commandboxSettings = vscode.workspace.getConfiguration( "commandbox", null );
+	await commandboxSettings.update( "autoDetect", "on" );
+	vscode.commands.executeCommand( "commandbox.refresh" );
 }
