@@ -3,7 +3,7 @@
 	"publisher": "ortus-solutions",
 	"displayName": "CommandBox",
 	"description": "Extension to add support for CommandBox",
-	"version": "1.0.2",
+	"version": "1.1.0",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.66.2"
@@ -29,44 +29,65 @@
 		"vscode:prepublish": "webpack --mode production"
 	},
 	"dependencies": {
-		"@octokit/rest": "~17.11.2",
+		"@octokit/rest": "~18.12.0",
 		"jsonc-parser": "^3.0.0",
-		"minimatch": "~3.0.4",
+		"micromatch": "~4.0.5",
 		"request-light": "^0.5.8"
 	},
 	"devDependencies": {
-		"@types/minimatch": "~3.0.3",
-		"@types/node": "~16.11.26",
+		"@types/micromatch": "4.0.2",
+		"@types/node": "~16.11.41",
 		"@types/vscode": "~1.66.0",
-		"@typescript-eslint/eslint-plugin": "^5.19.0",
-		"@typescript-eslint/parser": "^5.19.0",
+		"@typescript-eslint/eslint-plugin": "^5.30.0",
+		"@typescript-eslint/parser": "^5.30.0",
 		"clean-webpack-plugin": "4.0.0",
-		"eslint": "^8.13.0",
-		"eslint-plugin-jsdoc": "^39.2.1",
+		"eslint": "^8.18.0",
+		"eslint-plugin-jsdoc": "^39.3.3",
 		"rimraf": "^3.0.2",
-		"ts-loader": "^9.2.8",
-		"typescript": "^4.6.3",
-		"vsce": "^2.7.0",
-		"webpack": "^5.72.0",
-		"webpack-cli": "^4.9.2"
+		"ts-loader": "^9.3.1",
+		"typescript": "^4.7.4",
+		"vsce": "^2.9.2",
+		"webpack": "^5.73.0",
+		"webpack-cli": "^4.10.0"
 	},
 	"main": "./dist/extension",
 	"activationEvents": [
+		"onTaskType:commandbox",
 		"workspaceContains:box.json",
 		"workspaceContains:server*.json",
 		"onView:commandbox",
 		"onCommand:commandbox.runScriptFromFolder"
 	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": "limited",
+			"description": "This extension executes tasks, which require trust to run."
+		}
+	},
 	"contributes": {
 		"views": {
 			"explorer": [
 				{
 					"id": "commandbox",
 					"name": "CommandBox Scripts",
-					"when": "commandbox:showScriptExplorer || config.commandbox.enableScriptExplorer"
+					"when": "commandbox:showScriptExplorer || config.commandbox.enableScriptExplorer",
+					"icon": "$(json)",
+					"contextualTitle": "CommandBox Scripts"
 				}
 			]
 		},
+		"viewsWelcome": [
+			{
+				"view": "commandbox",
+				"contents": "No scripts found.",
+				"when": "config.commandbox.autoDetect != off"
+			},
+			{
+				"view": "commandbox",
+				"contents": "The setting \"commandbox.autoDetect\" is \"off\".\n[Set autoDetect on](command:commandbox.autoDetectOn)",
+				"when": "config.commandbox.autoDetect == off"
+			}
+		],
 		"commands": [
 			{
 				"command": "commandbox.runScript",
@@ -96,6 +117,10 @@
 				"command": "commandbox.runScriptFromFolder",
 				"title": "Run Script in Folder...",
 				"icon": "$(run)"
+			},
+			{
+				"command": "commandbox.autoDetectOn",
+				"title": "Set autoDetect on"
 			}
 		],
 		"menus": {
@@ -135,7 +160,7 @@
 			"explorer/context": [
 				{
 					"command": "commandbox.runScriptFromFolder",
-					"when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+					"when": "config.commandbox.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
 					"group": "2_workspace"
 				}
 			],
@@ -246,6 +271,15 @@
 					],
 					"description": "When a VS Code task name starts with this, it will be assigned as a test task.",
 					"scope": "resource"
+				},
+				"commandbox.scriptExplorerExclude": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"markdownDescription": "An array of regular expressions that indicate which scripts should be excluded from the CommandBox Scripts view.",
+					"scope": "resource",
+					"default": []
 				},
 				"commandbox.forgebox.fetchOnlinePackageInfo": {
 					"type": "boolean",
