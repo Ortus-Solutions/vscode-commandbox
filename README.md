@@ -1,6 +1,7 @@
 # VS Code CommandBox extension
 
 [![VS Marketplace](https://vsmarketplacebadge.apphb.com/version-short/ortus-solutions.vscode-commandbox.svg)](https://marketplace.visualstudio.com/items?itemName=ortus-solutions.vscode-commandbox)
+[![Open VSX](https://img.shields.io/open-vsx/v/ortus-solutions/vscode-commandbox)](https://open-vsx.org/extension/ortus-solutions/vscode-commandbox)
 
 Integrates [CommandBox](https://www.ortussolutions.com/products/commandbox) into VS Code. If you are new to CommandBox, check the [documentation](https://commandbox.ortusbooks.com/).
 
