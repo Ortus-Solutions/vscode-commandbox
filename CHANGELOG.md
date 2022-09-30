@@ -3,6 +3,7 @@
 ## v1.2.0 - TBD
 
 * Add option to disable script hover
+* Update dependencies
 
 ## v1.1.0 - 2022-07-08
 
