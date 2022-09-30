@@ -21,16 +21,29 @@ export function invalidateHoverScriptsCache( document?: TextDocument ): void {
 }
 
 export class BoxScriptHoverProvider implements HoverProvider {
+	private enabled: boolean;
 
 	constructor( private context: ExtensionContext ) {
 		context.subscriptions.push( commands.registerCommand( "commandbox.runScriptFromHover", this.runScriptFromHover, this ) );
 		context.subscriptions.push( workspace.onDidChangeTextDocument( ( e ) => {
 			invalidateHoverScriptsCache( e.document );
 		} ) );
+
+		const isEnabled = (): boolean => workspace.getConfiguration( "commandbox" ).get<boolean>( "scriptHover" , true );
+		this.enabled = isEnabled();
+		context.subscriptions.push( workspace.onDidChangeConfiguration( ( e ) => {
+			if ( e.affectsConfiguration( "commandbox.scriptHover" ) ) {
+				this.enabled = isEnabled();
+			}
+		} ) );
 	}
 
 	public provideHover( document: TextDocument, position: Position, _token: CancellationToken ): ProviderResult<Hover> {
 		let hover: Hover | undefined = undefined;
+
+		if ( !this.enabled ) {
+			return hover;
+		}
 
 		if ( cachedDocument?.fsPath !== document.uri.fsPath ) {
 			cachedScripts = readScripts( document );

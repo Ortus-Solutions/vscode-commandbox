@@ -3,7 +3,7 @@
 	"publisher": "ortus-solutions",
 	"displayName": "CommandBox",
 	"description": "Extension to add support for CommandBox",
-	"version": "1.1.0",
+	"version": "1.2.0-snapshot",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.66.2"
@@ -280,6 +280,12 @@
 					"markdownDescription": "An array of regular expressions that indicate which scripts should be excluded from the CommandBox Scripts view.",
 					"scope": "resource",
 					"default": []
+				},
+				"commandbox.scriptHover": {
+					"type": "boolean",
+					"description": "Display hover with 'Run' command for scripts.",
+					"default": true,
+					"scope": "window"
 				},
 				"commandbox.forgebox.fetchOnlinePackageInfo": {
 					"type": "boolean",

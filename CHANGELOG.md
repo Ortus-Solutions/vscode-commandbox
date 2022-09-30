@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.0 - TBD
+
+* Add option to disable script hover
+
 ## v1.1.0 - 2022-07-08
 
 * Add [Welcome content](https://code.visualstudio.com/api/extension-guides/tree-view#welcome-content) to CommandBox Scripts view.
