@@ -1,10 +1,11 @@
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
+	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, Position, ExtensionContext,
+	ShellQuotedString, ShellQuoting, Location, CancellationTokenSource
 } from "vscode";
 import * as path from "path";
-import * as minimatch from "minimatch";
-import { JSONVisitor, visit, ParseErrorCode } from "jsonc-parser";
+import * as micromatch from "micromatch";
+import { IBoxScriptInfo, readScripts } from "./readScripts";
 
 export interface BoxTaskDefinition extends TaskDefinition {
 	script: string;
@@ -16,20 +17,37 @@ export interface FolderTaskItem extends QuickPickItem {
 	task: Task;
 }
 
-type AutoDetect = "on" | "off";
+export type AutoDetect = "on" | "off";
 
-let cachedTasks: Task[] | undefined = undefined;
+let cachedTasks: TaskWithLocation[] | undefined = undefined;
+
+const INSTALL_SCRIPT = "install";
+
+export interface TaskLocation {
+	document: Uri;
+	line: Position;
+}
+
+export interface TaskWithLocation {
+	task: Task;
+	location?: Location;
+}
 
 export class BoxTaskProvider implements TaskProvider {
 
-	constructor() {
+	constructor( private context: ExtensionContext ) {
 	}
 
-	public provideTasks() {
-		return provideBoxScripts();
+	get tasksWithLocation(): Promise<TaskWithLocation[]> {
+		return provideBoxScripts( this.context );
 	}
 
-	public resolveTask( _task: Task ): Task | undefined {
+	public async provideTasks(): Promise<Task[]> {
+		const tasks = await provideBoxScripts( this.context );
+		return tasks.map( task => task.task );
+	}
+
+	public async resolveTask( _task: Task ): Promise<Task | undefined> {
 		if ( "script" in _task.definition ) {
 			const kind = _task.definition as BoxTaskDefinition;
 			let boxJsonUri: Uri;
@@ -38,17 +56,24 @@ export class BoxTaskProvider implements TaskProvider {
 				return undefined;
 			}
 			if ( kind.path ) {
-				boxJsonUri = _task.scope.uri.with( { path: `${_task.scope.uri.path}/${kind.path}box.json` } );
+				boxJsonUri = _task.scope.uri.with( { path: `${_task.scope.uri.path}/${kind.path}${kind.path.endsWith( "/" ) ? "" : "/"}box.json` } );
 			} else {
 				boxJsonUri = _task.scope.uri.with( { path: `${_task.scope.uri.path}/box.json` } );
 			}
-			return createTask( kind, `run-script ${kind.script}`, _task.scope, boxJsonUri );
+
+			const cmd = [ kind.script ];
+			if ( kind.script !== INSTALL_SCRIPT ) {
+				cmd.unshift( "run-script" );
+			}
+
+			return createTask( getPackageManager( this.context, _task.scope.uri ), kind, cmd, _task.scope, boxJsonUri );
 		}
+
 		return undefined;
 	}
 }
 
-export function invalidateTasksCache() {
+export function invalidateTasksCache(): void {
 	cachedTasks = undefined;
 }
 
@@ -62,26 +87,29 @@ function isTestTask( lowerName: string, boxJsonUri: Uri ): boolean {
 	return testNames.some( ( testName ) => lowerName.startsWith( testName ) );
 }
 
-function getPrePostScripts( scripts: object ): Set<string> {
+function isPrePostScript( name: string ): boolean {
 	const prePostScripts: Set<string> = new Set( [
 		"preinstall", "postinstall", "preuninstall", "postuninstall",
 		"preversion", "postversion", "prepublish", "postpublish",
 		"preunpublish", "postunpublish"
 	] );
-	const keys = Object.keys( scripts );
-	for ( const script of keys ) {
-		const prepost = [ "pre" + script, "post" + script ];
-		prepost.forEach( each => {
-			if ( scripts[each] !== undefined ) {
-				prePostScripts.add( each );
-			}
-		} );
+
+	const prepost = [ "pre" + name, "post" + name ];
+	for ( const knownScript of prePostScripts ) {
+		if ( knownScript === prepost[0] || knownScript === prepost[1] ) {
+			return true;
+		}
 	}
-	return prePostScripts;
+
+	return false;
 }
 
-export function isWorkspaceFolder( value: any ): value is WorkspaceFolder {
+export function isWorkspaceFolder( value: unknown ): value is WorkspaceFolder {
 	return value && typeof value !== "number";
+}
+
+export function getPackageManager( _extensionContext: ExtensionContext, _folder: Uri ): string {
+	return "box";
 }
 
 export async function hasBoxScripts(): Promise<boolean> {
@@ -105,9 +133,9 @@ export async function hasBoxScripts(): Promise<boolean> {
 	}
 }
 
-async function detectBoxScripts(): Promise<Task[]> {
-	const emptyTasks: Task[] = [];
-	const allTasks: Task[] = [];
+async function detectBoxScripts( context: ExtensionContext ): Promise<TaskWithLocation[]> {
+	const emptyTasks: TaskWithLocation[] = [];
+	const allTasks: TaskWithLocation[] = [];
 	const visitedBoxJsonFiles: Set<string> = new Set();
 
 	const folders = workspace.workspaceFolders;
@@ -121,7 +149,7 @@ async function detectBoxScripts(): Promise<Task[]> {
 				const paths = await workspace.findFiles( relativePattern );
 				for ( const path of paths ) {
 					if ( !isExcluded( folder, path ) && !visitedBoxJsonFiles.has( path.fsPath ) ) {
-						const tasks = await provideBoxScriptsForFolder( path );
+						const tasks = await provideBoxScriptsForFolder( context, path );
 						visitedBoxJsonFiles.add( path.fsPath );
 						allTasks.push( ...tasks );
 					}
@@ -134,7 +162,7 @@ async function detectBoxScripts(): Promise<Task[]> {
 	}
 }
 
-export async function detectBoxScriptsForFolder( folder: Uri ): Promise<FolderTaskItem[]> {
+export async function detectBoxScriptsForFolder( context: ExtensionContext, folder: Uri ): Promise<FolderTaskItem[]> {
 	const folderTasks: FolderTaskItem[] = [];
 
 	try {
@@ -144,9 +172,9 @@ export async function detectBoxScriptsForFolder( folder: Uri ): Promise<FolderTa
 		const visitedBoxJsonFiles: Set<string> = new Set();
 		for ( const path of paths ) {
 			if ( !visitedBoxJsonFiles.has( path.fsPath ) ) {
-				const tasks = await provideBoxScriptsForFolder( path );
+				const tasks = await provideBoxScriptsForFolder( context, path );
 				visitedBoxJsonFiles.add( path.fsPath );
-				folderTasks.push( ...tasks.map( t => ( { label: t.name, task: t } ) ) );
+				folderTasks.push( ...tasks.map( t => ( { label: t.task.name, task: t.task } ) ) );
 			}
 		}
 		return folderTasks;
@@ -155,9 +183,9 @@ export async function detectBoxScriptsForFolder( folder: Uri ): Promise<FolderTa
 	}
 }
 
-export async function provideBoxScripts(): Promise<Task[]> {
+export async function provideBoxScripts( context: ExtensionContext ): Promise<TaskWithLocation[]> {
 	if ( !cachedTasks ) {
-		cachedTasks = await detectBoxScripts();
+		cachedTasks = await detectBoxScripts( context );
 	}
 	return cachedTasks;
 }
@@ -166,30 +194,18 @@ export function isAutoDetectionEnabled( folder?: WorkspaceFolder ): boolean {
 	return workspace.getConfiguration( "commandbox", folder?.uri ).get<AutoDetect>( "autoDetect" ) === "on";
 }
 
-function isExcluded( folder: WorkspaceFolder, boxJsonUri: Uri ) {
-	function testForExclusionPattern( path: string, pattern: string ): boolean {
-		return minimatch( path, pattern, { dot: true } );
-	}
-
+function isExcluded( folder: WorkspaceFolder, boxJsonUri: Uri ): boolean {
 	const exclude = workspace.getConfiguration( "commandbox", folder.uri ).get<string | string[]>( "exclude" );
 	const boxJsonFolder = path.dirname( boxJsonUri.fsPath );
 
 	if ( exclude ) {
-		if ( Array.isArray( exclude ) ) {
-			for ( const pattern of exclude ) {
-				if ( testForExclusionPattern( boxJsonFolder, pattern ) ) {
-					return true;
-				}
-			}
-		} else if ( testForExclusionPattern( boxJsonFolder, exclude ) ) {
-			return true;
-		}
+		return micromatch.isMatch( boxJsonFolder, exclude );
 	}
 	return false;
 }
 
-async function provideBoxScriptsForFolder( boxJsonUri: Uri ): Promise<Task[]> {
-	const emptyTasks: Task[] = [];
+async function provideBoxScriptsForFolder( context: ExtensionContext, boxJsonUri: Uri ): Promise<TaskWithLocation[]> {
+	const emptyTasks: TaskWithLocation[] = [];
 
 	const folder = workspace.getWorkspaceFolder( boxJsonUri );
 	if ( !folder ) {
@@ -200,35 +216,32 @@ async function provideBoxScriptsForFolder( boxJsonUri: Uri ): Promise<Task[]> {
 		return emptyTasks;
 	}
 
-	const result: Task[] = [];
+	const result: TaskWithLocation[] = [];
 
-	const prePostScripts = getPrePostScripts( scripts );
-	Object.keys( scripts ).forEach( each => {
-		const task = createTask( each, `run-script ${each}`, folder!, boxJsonUri );
-		const lowerCaseTaskName = each.toLowerCase();
-		if ( isBuildTask( lowerCaseTaskName, boxJsonUri ) ) {
-			task.group = TaskGroup.Build;
-		} else if ( isTestTask( lowerCaseTaskName, boxJsonUri ) ) {
-			task.group = TaskGroup.Test;
-		}
-		if ( prePostScripts.has( lowerCaseTaskName ) ) {
-			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
-		}
-		result.push( task );
-	} );
-	// always add box install (without a problem matcher)
-	result.push( createTask( "install", "install", folder, boxJsonUri, [] ) );
+	const packageManager = getPackageManager( context, folder.uri );
+
+	for ( const { name, value, nameRange } of scripts.scripts ) {
+
+		const task = await createTask( packageManager, name, [ "run-script", name ], folder!, boxJsonUri, value, undefined );
+
+		result.push( { task, location: new Location( boxJsonUri, nameRange ) } );
+	}
+
+	if ( !workspace.getConfiguration( "commandbox", folder ).get<string[]>( "scriptExplorerExclude", [] ).find( e => e.includes( INSTALL_SCRIPT ) ) ) {
+		result.push( { task: await createTask( packageManager, INSTALL_SCRIPT, [ INSTALL_SCRIPT ], folder, boxJsonUri, "install dependencies from package", [] ) } );
+	}
+
 	return result;
 }
 
-export function getTaskName( script: string, relativePath: string | undefined ) {
+export function getTaskName( script: string, relativePath: string | undefined ): string {
 	if ( relativePath?.length ) {
 		return `${script} - ${relativePath.substring( 0, relativePath.length - 1 )}`;
 	}
 	return script;
 }
 
-export function createTask( script: BoxTaskDefinition | string, cmd: string, folder: WorkspaceFolder, boxJsonUri: Uri, matcher?: string | string[] ): Task {
+export async function createTask( packageManager: string, script: BoxTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, boxJsonUri: Uri, scriptValue?: string, matcher?: string | string[] ): Promise<Task> {
 	let kind: BoxTaskDefinition;
 	if ( typeof script === "string" ) {
 		kind = { type: "commandbox", script: script };
@@ -236,51 +249,56 @@ export function createTask( script: BoxTaskDefinition | string, cmd: string, fol
 		kind = script;
 	}
 
-	function getCommandLine( _folder: WorkspaceFolder, cmd: string ): string {
-		const packageManager = "box";
+	function getCommandLine( cmd: string[] ): ( string | ShellQuotedString )[] {
+		const result: ( string | ShellQuotedString )[] = new Array( cmd.length );
+		for ( let i = 0; i < cmd.length; i++ ) {
+			if ( /\s/.test( cmd[i] ) ) {
+				result[i] = { value: cmd[i], quoting: cmd[i].includes( "--" ) ? ShellQuoting.Weak : ShellQuoting.Strong };
+			} else {
+				result[i] = cmd[i];
+			}
+		}
 
-		return `${packageManager} ${cmd}`;
+		return result;
 	}
 
-	function getRelativePath( folder: WorkspaceFolder, boxJsonUri: Uri ): string {
+	function getRelativePath( boxJsonUri: Uri ): string {
 		const rootUri = folder.uri;
 		const absolutePath = boxJsonUri.path.substring( 0, boxJsonUri.path.length - "box.json".length );
 		return absolutePath.substring( rootUri.path.length + 1 );
 	}
 
-	const relativeBoxJson = getRelativePath( folder, boxJsonUri );
-	if ( relativeBoxJson.length ) {
-		kind.path = getRelativePath( folder, boxJsonUri );
+	const relativeBoxJson = getRelativePath( boxJsonUri );
+	if ( relativeBoxJson.length && !kind.path ) {
+		kind.path = relativeBoxJson.slice( 0, -1 );
 	}
 	const taskName = getTaskName( kind.script, relativeBoxJson );
 	const cwd = path.dirname( boxJsonUri.fsPath );
-	return new Task( kind, folder, taskName, "commandbox", new ShellExecution( getCommandLine( folder, cmd ), { cwd: cwd } ), matcher );
+	const task = new Task( kind, folder, taskName, "commandbox", new ShellExecution( packageManager, getCommandLine( cmd ), { cwd: cwd } ), matcher );
+	task.detail = scriptValue;
+
+	const lowerCaseTaskName = kind.script.toLowerCase();
+	if ( isBuildTask( lowerCaseTaskName, boxJsonUri ) ) {
+		task.group = TaskGroup.Build;
+	} else if ( isTestTask( lowerCaseTaskName, boxJsonUri ) ) {
+		task.group = TaskGroup.Test;
+	} else if ( isPrePostScript( lowerCaseTaskName ) ) {
+		task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
+	}
+
+	return task;
 }
 
 
 export function getBoxJsonUriFromTask( task: Task ): Uri | null {
 	if ( isWorkspaceFolder( task.scope ) ) {
 		if ( task.definition.path ) {
-			return Uri.file( path.join( task.scope.uri.fsPath, task.definition.path, "box.json" ) );
+			return Uri.joinPath( task.scope.uri, task.definition.path, "box.json" );
 		} else {
-			return Uri.file( path.join( task.scope.uri.fsPath, "box.json" ) );
+			return Uri.joinPath( task.scope.uri, "box.json" );
 		}
 	}
 	return null;
-}
-
-export async function hasBoxJson(): Promise<boolean> {
-	const folders = workspace.workspaceFolders;
-	if ( !folders ) {
-		return false;
-	}
-	for ( const folder of folders ) {
-		if ( folder.uri.scheme === "file" ) {
-			const boxJson = path.join( folder.uri.fsPath, "box.json" );
-			return exists( Uri.file( boxJson ) );
-		}
-	}
-	return false;
 }
 
 async function exists( fileUri: Uri ): Promise<boolean> {
@@ -292,135 +310,56 @@ async function exists( fileUri: Uri ): Promise<boolean> {
 	}
 }
 
-async function readFile( fileUri: Uri ): Promise<string> {
-	const readData = await workspace.fs.readFile( fileUri );
-	return Buffer.from( readData ).toString( "utf8" );
+export async function hasBoxJson(): Promise<boolean> {
+	const token = new CancellationTokenSource();
+	// Search for files for max 1 second.
+	const timeout = setTimeout( () => token.cancel(), 1000 );
+	const files = await workspace.findFiles( "**/box.json", undefined, 1, token.token );
+	clearTimeout( timeout );
+	return files.length > 0 || await hasRootBoxJson();
 }
 
-export function runScript( script: string, document: TextDocument ) {
+async function hasRootBoxJson(): Promise<boolean> {
+	const folders = workspace.workspaceFolders;
+	if ( !folders ) {
+		return false;
+	}
+	for ( const folder of folders ) {
+		const boxJson = Uri.joinPath( folder.uri, "box.json" );
+		if ( await exists( boxJson ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export async function runScript( context: ExtensionContext, script: string, document: TextDocument ): Promise<void> {
 	const uri = document.uri;
 	const folder = workspace.getWorkspaceFolder( uri );
 	if ( folder ) {
-		const task = createTask( script, `run-script ${script}`, folder, uri );
+		const task = await createTask( getPackageManager( context, folder.uri ), script, [ "run-script", script ], folder, uri );
 		tasks.executeTask( task );
 	}
 }
 
 export type StringMap = { [s: string]: string };
 
-async function findAllScripts( buffer: string ): Promise<StringMap> {
-	const scripts: StringMap = {};
-	let script: string | undefined = undefined;
-	let inScripts = false;
+export function findScriptAtPosition( document: TextDocument, buffer: string, position: Position ): string | undefined {
+	const read = readScripts( document, buffer );
+	if ( !read ) {
+		return undefined;
+	}
 
-	const visitor: JSONVisitor = {
-		onError( _error: ParseErrorCode, _offset: number, _length: number ) {
-			console.log( _error );
-		},
-		onObjectEnd() {
-			if ( inScripts ) {
-				inScripts = false;
-			}
-		},
-		onLiteralValue( value: any, _offset: number, _length: number ) {
-			if ( script ) {
-				if ( typeof value === "string" ) {
-					scripts[script] = value;
-				}
-				script = undefined;
-			}
-		},
-		onObjectProperty( property: string, _offset: number, _length: number ) {
-			if ( property === "scripts" ) {
-				inScripts = true;
-			} else if ( inScripts && !script ) {
-				script = property;
-			} else { // nested object which is invalid, ignore the script
-				script = undefined;
-			}
+	for ( const script of read.scripts ) {
+		if ( script.nameRange.start.isBeforeOrEqual( position ) && script.valueRange.end.isAfterOrEqual( position ) ) {
+			return script.name;
 		}
-	};
-	visit( buffer, visitor );
-	return scripts;
+	}
+
+	return undefined;
 }
 
-export function findAllScriptRanges( buffer: string ): Map<string, [number, number, string]> {
-	const scripts: Map<string, [number, number, string]> = new Map();
-	let script: string | undefined = undefined;
-	let offset: number;
-	let length: number;
-
-	let inScripts = false;
-
-	const visitor: JSONVisitor = {
-		onError( _error: ParseErrorCode, _offset: number, _length: number ) {
-		},
-		onObjectEnd() {
-			if ( inScripts ) {
-				inScripts = false;
-			}
-		},
-		onLiteralValue( value: any, _offset: number, _length: number ) {
-			if ( script ) {
-				scripts.set( script, [ offset, length, value ] );
-				script = undefined;
-			}
-		},
-		onObjectProperty( property: string, off: number, len: number ) {
-			if ( property === "scripts" ) {
-				inScripts = true;
-			} else if ( inScripts ) {
-				script = property;
-				offset = off;
-				length = len;
-			}
-		}
-	};
-	visit( buffer, visitor );
-	return scripts;
-}
-
-export function findScriptAtPosition( buffer: string, offset: number ): string | undefined {
-	let script: string | undefined = undefined;
-	let foundScript: string | undefined = undefined;
-	let inScripts = false;
-	let scriptStart: number | undefined;
-	const visitor: JSONVisitor = {
-		onError( _error: ParseErrorCode, _offset: number, _length: number ) {
-		},
-		onObjectEnd() {
-			if ( inScripts ) {
-				inScripts = false;
-				scriptStart = undefined;
-			}
-		},
-		onLiteralValue( value: any, nodeOffset: number, nodeLength: number ) {
-			if ( inScripts && scriptStart ) {
-				if ( typeof value === "string" && offset >= scriptStart && offset < nodeOffset + nodeLength ) {
-					// found the script
-					inScripts = false;
-					foundScript = script;
-				} else {
-					script = undefined;
-				}
-			}
-		},
-		onObjectProperty( property: string, nodeOffset: number ) {
-			if ( property === "scripts" ) {
-				inScripts = true;
-			} else if ( inScripts ) {
-				scriptStart = nodeOffset;
-				script = property;
-			} else { // nested object which is invalid, ignore the script
-				script = undefined;
-			}
-		}
-	};
-	visit( buffer, visitor );
-	return foundScript;
-}
-
-export async function getScripts( boxJsonUri: Uri ): Promise<StringMap | undefined> {
+export async function getScripts( boxJsonUri: Uri ): Promise<IBoxScriptInfo | undefined> {
 	if ( boxJsonUri.scheme !== "file" ) {
 		return undefined;
 	}
@@ -430,9 +369,8 @@ export async function getScripts( boxJsonUri: Uri ): Promise<StringMap | undefin
 	}
 
 	try {
-		const contents = await readFile( boxJsonUri );
-		const json = findAllScripts( contents );
-		return json;
+		const document: TextDocument = await workspace.openTextDocument( boxJsonUri );
+		return readScripts( document );
 	} catch ( e ) {
 		const parseError = `CommandBox task detection: failed to parse the file ${boxJsonUri.fsPath}`;
 		throw new Error( parseError );

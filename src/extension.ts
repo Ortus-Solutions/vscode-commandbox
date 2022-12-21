@@ -1,37 +1,48 @@
 import * as httpRequest from "request-light";
 import { Octokit } from "@octokit/rest";
-import * as fs from "fs";
-import * as path from "path";
 import * as vscode from "vscode";
 import { addJSONProviders } from "./features/jsonContributions";
-import { runSelectedScript, selectAndRunScriptFromFolder } from "./commands";
+import { runSelectedScript, selectAndRunScriptFromFolder, turnAutoDetectOn } from "./commands";
 import { BoxScriptsTreeDataProvider } from "./commandboxView";
 import { invalidateTasksCache, BoxTaskProvider, hasBoxJson } from "./tasks";
 import { invalidateHoverScriptsCache, BoxScriptHoverProvider } from "./scriptHover";
 
 let treeDataProvider: BoxScriptsTreeDataProvider | undefined;
 const octokit = new Octokit();
-const httpSuccessStatusCode: number = 200;
+const gitRepoInfo = {
+	owner      : "Ortus-Solutions",
+	repo       : "commandbox",
+	prodBranch : "master"
+};
+const httpSuccessStatusCode = 200;
+
+function invalidateScriptCaches(): void {
+	invalidateHoverScriptsCache();
+	invalidateTasksCache();
+	if ( treeDataProvider ) {
+		treeDataProvider.refresh();
+	}
+}
 
 /**
  * Gets the latest CommandBox Server schema from the CommandBox git repository
  */
 async function getLatestServerSchema( context: vscode.ExtensionContext ): Promise<void> {
-	const serverSchemaFileName: string = "server.schema.json";
-	const serverSchemaFilePath: string = path.join( context.extensionPath, "resources", "schemas", serverSchemaFileName );
+	const serverSchemaFileName = "server.schema.json";
 
 	try {
-		const serverSchemaResult = await octokit.repos.getContents( {
-			owner : "Ortus-Solutions",
-			repo  : "commandbox",
+		const serverSchemaResult = await octokit.repos.getContent( {
+			owner : gitRepoInfo.owner,
+			repo  : gitRepoInfo.repo,
 			path  : `src/cfml/system/config/${serverSchemaFileName}`,
-			ref   : "master"
+			ref   : gitRepoInfo.prodBranch
 		} );
 
 		if ( serverSchemaResult?.status === httpSuccessStatusCode && !Array.isArray( serverSchemaResult.data ) && serverSchemaResult.data.type === "file" ) {
-			const resultText: string = Buffer.from( serverSchemaResult.data.content, <BufferEncoding>serverSchemaResult.data.encoding ).toString( "utf8" );
+			const result = Buffer.from( serverSchemaResult.data["content"], serverSchemaResult.data["encoding"] as BufferEncoding );
+			const serverSchemaFileUri = vscode.Uri.joinPath( context.extensionUri, "resources", "schemas", serverSchemaFileName );
 
-			fs.writeFileSync( serverSchemaFilePath, resultText );
+			await vscode.workspace.fs.writeFile( serverSchemaFileUri, result );
 		}
 	} catch ( err ) {
 		console.error( err );
@@ -42,21 +53,21 @@ async function getLatestServerSchema( context: vscode.ExtensionContext ): Promis
  * Gets the latest Box schema from the CommandBox git repository
  */
 async function getLatestBoxSchema( context: vscode.ExtensionContext ): Promise<void> {
-	const boxSchemaFileName: string = "box.schema.json";
-	const boxSchemaFilePath: string = path.join( context.extensionPath, "resources", "schemas", boxSchemaFileName );
+	const boxSchemaFileName = "box.schema.json";
 
 	try {
-		const boxSchemaResult = await octokit.repos.getContents( {
-			owner : "Ortus-Solutions",
-			repo  : "commandbox",
+		const boxSchemaResult = await octokit.repos.getContent( {
+			owner : gitRepoInfo.owner,
+			repo  : gitRepoInfo.repo,
 			path  : `src/cfml/system/config/${boxSchemaFileName}`,
-			ref   : "master"
+			ref   : gitRepoInfo.prodBranch
 		} );
 
 		if ( boxSchemaResult?.status === httpSuccessStatusCode && !Array.isArray( boxSchemaResult.data ) && boxSchemaResult.data.type === "file" ) {
-			const resultText: string = Buffer.from( boxSchemaResult.data.content, <BufferEncoding>boxSchemaResult.data.encoding ).toString( "utf8" );
+			const result = Buffer.from( boxSchemaResult.data["content"], boxSchemaResult.data["encoding"] as BufferEncoding );
+			const boxSchemaFileUri = vscode.Uri.joinPath( context.extensionUri, "resources", "schemas", boxSchemaFileName );
 
-			fs.writeFileSync( boxSchemaFilePath, resultText );
+			await vscode.workspace.fs.writeFile( boxSchemaFileUri, result );
 		}
 	} catch ( err ) {
 		console.error( err );
@@ -64,17 +75,24 @@ async function getLatestBoxSchema( context: vscode.ExtensionContext ): Promise<v
 }
 
 export async function activate( context: vscode.ExtensionContext ): Promise<void> {
+	configureHttpRequest();
+	context.subscriptions.push( vscode.workspace.onDidChangeConfiguration( e => {
+		if ( e.affectsConfiguration( "http.proxy" ) || e.affectsConfiguration( "http.proxyStrictSSL" ) ) {
+			configureHttpRequest();
+		}
+	} ) ) ;
+
+	context.subscriptions.push( addJSONProviders( httpRequest.xhr ) );
+
 	registerTaskProvider( context );
+
 	treeDataProvider = registerExplorer( context );
-	registerScriptHoverProvider( context );
 
 	getLatestServerSchema( context );
 	getLatestBoxSchema( context );
 
-	configureHttpRequest();
-	let d = vscode.workspace.onDidChangeConfiguration( ( e ) => {
-		configureHttpRequest();
-		if ( e.affectsConfiguration( "commandbox.exclude" ) || e.affectsConfiguration( "commandbox.autoDetect" ) ) {
+	context.subscriptions.push( vscode.workspace.onDidChangeConfiguration( ( e ) => {
+		if ( e.affectsConfiguration( "commandbox.exclude" ) || e.affectsConfiguration( "commandbox.autoDetect" )|| e.affectsConfiguration( "commandbox.scriptExplorerExclude" ) ) {
 			invalidateTasksCache();
 			if ( treeDataProvider ) {
 				treeDataProvider.refresh();
@@ -85,33 +103,27 @@ export async function activate( context: vscode.ExtensionContext ): Promise<void
 				treeDataProvider.refresh();
 			}
 		}
-	} );
-	context.subscriptions.push( d );
+	} ) );
 
-	d = vscode.workspace.onDidChangeTextDocument( ( e ) => {
-		invalidateHoverScriptsCache( e.document );
-	} );
-	context.subscriptions.push( d );
+	registerScriptHoverProvider( context );
+
 	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.runSelectedScript", runSelectedScript ) );
-	context.subscriptions.push( addJSONProviders( httpRequest.xhr ) );
 
 	if ( await hasBoxJson() ) {
 		vscode.commands.executeCommand( "setContext", "commandbox:showScriptExplorer", true );
 	}
 
 	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.runScriptFromFolder", selectAndRunScriptFromFolder ) );
+
+	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.autoDetectOn", turnAutoDetectOn ) );
+
+	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.refresh", () => {
+		invalidateScriptCaches();
+	} ) ) ;
 }
 
+let taskProvider: BoxTaskProvider;
 function registerTaskProvider( context: vscode.ExtensionContext ): vscode.Disposable | undefined {
-
-	function invalidateScriptCaches() {
-		invalidateHoverScriptsCache();
-		invalidateTasksCache();
-		if ( treeDataProvider ) {
-			treeDataProvider.refresh();
-		}
-	}
-
 	if ( vscode.workspace.workspaceFolders ) {
 		const watcher = vscode.workspace.createFileSystemWatcher( "**/box.json" );
 		watcher.onDidChange( ( _e ) => invalidateScriptCaches() );
@@ -122,8 +134,8 @@ function registerTaskProvider( context: vscode.ExtensionContext ): vscode.Dispos
 		const workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders( ( _e ) => invalidateScriptCaches() );
 		context.subscriptions.push( workspaceWatcher );
 
-		const provider: vscode.TaskProvider = new BoxTaskProvider();
-		const disposable = vscode.tasks.registerTaskProvider( "commandbox", provider );
+		taskProvider = new BoxTaskProvider( context );
+		const disposable = vscode.tasks.registerTaskProvider( "commandbox", taskProvider );
 		context.subscriptions.push( disposable );
 		return disposable;
 	}
@@ -132,7 +144,7 @@ function registerTaskProvider( context: vscode.ExtensionContext ): vscode.Dispos
 
 function registerExplorer( context: vscode.ExtensionContext ): BoxScriptsTreeDataProvider | undefined {
 	if ( vscode.workspace.workspaceFolders ) {
-		const treeDataProvider = new BoxScriptsTreeDataProvider( context );
+		const treeDataProvider = new BoxScriptsTreeDataProvider( context, taskProvider! );
 		const view = vscode.window.createTreeView( "commandbox", { treeDataProvider: treeDataProvider, showCollapseAll: true } );
 		context.subscriptions.push( view );
 		return treeDataProvider;
@@ -154,9 +166,16 @@ function registerScriptHoverProvider( context: vscode.ExtensionContext ): BoxScr
 	return undefined;
 }
 
-function configureHttpRequest() {
+function configureHttpRequest(): void {
 	const httpSettings = vscode.workspace.getConfiguration( "http" );
-	httpRequest.configure( httpSettings.get<string>( "proxy", "" ), httpSettings.get<boolean>( "proxyStrictSSL", true ) );
+	const proxyUrl = httpSettings.get<string>( "proxy", "" );
+	const strictSSL = httpSettings.get<boolean>( "proxyStrictSSL", true );
+
+	httpRequest.configure( proxyUrl, strictSSL );
+
+	if ( proxyUrl ) {
+		// TODO: Configure Octokit for proxy
+	}
 }
 
 export function deactivate(): void {

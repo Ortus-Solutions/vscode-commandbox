@@ -1,5 +1,8 @@
 # VS Code CommandBox extension
 
+[![VS Marketplace](https://vsmarketplacebadge.apphb.com/version-short/ortus-solutions.vscode-commandbox.svg)](https://marketplace.visualstudio.com/items?itemName=ortus-solutions.vscode-commandbox)
+[![Open VSX](https://img.shields.io/open-vsx/v/ortus-solutions/vscode-commandbox)](https://open-vsx.org/extension/ortus-solutions/vscode-commandbox)
+
 Integrates [CommandBox](https://www.ortussolutions.com/products/commandbox) into VS Code. If you are new to CommandBox, check the [documentation](https://commandbox.ortusbooks.com/).
 
 You are expected to have CommandBox installed on your system.
@@ -75,12 +78,13 @@ The extension also fetches data from ForgeBox to provide auto-completion and inf
 ## Settings
 
 - `commandbox.autoDetect` - Enable detecting scripts as VS Code tasks. [*Default*: `on`]
-- `commandbox.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the `box.json`. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
+- `commandbox.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the `box.json`. For example, to exclude all test folders use `**/test/**`.
 - `commandbox.enableScriptExplorer` - Enable an explorer view for CommandBox scripts when there is no top-level `box.json` file. [*Default*: `false`]
 - `commandbox.enableRunFromFolder` - Enable running CommandBox scripts from the context menu of folders in Explorer. [*Default*: `false`]
 - `commandbox.scriptExplorerAction` - The default click action: `open` or `run`. [*Default*: `open`]
 - `commandbox.buildNames` - When a VS Code task contains this as part of its name, it will be assigned as a build task. [*Default*: `["build", "compile", "watch"]`]
 - `commandbox.testNames` - When a VS Code task name starts with this, it will be assigned as a test task. [*Default*: `["test"]`]
+- `commandbox.scriptExplorerExclude` - An array of regular expressions that indicate which scripts should be excluded from the CommandBox Scripts view. [*Default*: `[]`]
 - `commandbox.forgebox.fetchOnlinePackageInfo` - Fetch data from ForgeBox to provide auto-completion and information on hover features on dependencies. [*Default*: `true`]
 - `commandbox.forgebox.endpointUrl` - The URL for the ForgeBox endpoint. Customize for ForgeBox Enterprise. [*Default*: `https://www.forgebox.io`]
 
