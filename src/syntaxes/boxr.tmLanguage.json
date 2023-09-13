@@ -1,0 +1,51 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "CommandBox Recipe",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.command.boxr",
+					"match": "\\b(exit|assertEqual|assertTrue|audit|browse|cat|cd|cfformat|cflint|cfml|checksum|clear|cp|delete|dir|echo|edit|execute|fixinator|forEach|help|history|info|mkdir|mv|norris|pathExists|prompt|pwd|quit|recipe|repl|run|scan-package|sed|sort|system-colors|system-log|tail|tokenReplace|touch|unique|upgrade|version|artifacts|cachebox|cfconfig|chuck|coldbox|config|contentbox|endpoint|env|forgebox|fr|fusionreactor|game|githooks|java|logbox|package|propertyFile|server|task|testbox|utils|wirebox)\\b"
+
+				},
+				{
+					"name": "keyword.function.boxr",
+					"match": "\\b(#\\w)\\b"
+				},
+				{
+					"name": "comment.line.boxr",
+					"match": "# .*"
+				},
+				{
+					"name": "keyword.function.boxr",
+					"match": "#[a-zA-Z]+"
+				},
+				{
+					"name": "keyword.variable.boxr",
+					"match": "\\$\\{(.*)\\}"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.boxr",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.boxr",
+					"match": "\\\\."
+				}
+			]
+		}
+	},
+	"scopeName": "source.boxr"
+}

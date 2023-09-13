@@ -334,6 +334,17 @@
 					}
 				}
 			}
-		]
+		],
+		"languages": [{
+            "id": "boxr",
+            "aliases": ["CommandBox Recipe", "boxr"],
+            "extensions": ["boxr"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "boxr",
+            "scopeName": "source.boxr",
+            "path": "./src/syntaxes/boxr.tmLanguage.json"
+        }]
 	}
 }
