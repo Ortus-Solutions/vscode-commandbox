@@ -2,7 +2,7 @@ import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, S
 import { IJSONContribution, ISuggestionsCollector } from "./jsonContributions";
 import { XHRRequest } from "request-light";
 import { Location } from "jsonc-parser";
-// import * as cp from "child_process";
+import * as forgeboxAPI from "../forgeboxAPI";
 
 const LIMIT = 50;
 const USER_AGENT = "Visual Studio Code";
@@ -178,55 +178,14 @@ export class BoxJSONContribution implements IJSONContribution {
 	private async fetchPackageInfo( pack: string, _resource: Uri | undefined ): Promise<BoxPackageInfo | undefined> {
 		// TODO: Should check first if pack name is even valid based on ForgeBox rules.
 
-		const info = await this.forgeboxView( pack );
-		if ( !info ) {
-			// info = await this.commandboxView( pack, resource );
+		const info = await forgeboxAPI.getPackageInfo( pack );
+
+		if ( info instanceof forgeboxAPI.ForgeBoxError ) {
+			return null;
 		}
+
 		return info;
 	}
-
-	private async forgeboxView( pack: string ): Promise<BoxPackageInfo | undefined> {
-		let endpointUrl: string = workspace.getConfiguration( "commandbox.forgebox" ).get( "endpointUrl" );
-		if ( endpointUrl.endsWith( "/" ) ) {
-			endpointUrl = endpointUrl.slice( 0, -1 );
-		}
-		const queryUrl = `${endpointUrl}/api/v1/entry/${encodeURIComponent( pack )}`;
-		try {
-			const success = await this.xhr( {
-				url     : queryUrl,
-				headers : { agent: USER_AGENT }
-			} );
-			if ( success.status === httpSuccessStatusCode ) {
-				const obj = JSON.parse( success.responseText );
-				if ( obj?.data ) {
-					return obj.data as BoxPackageInfo;
-				}
-			}
-		} catch ( error ) {
-			// ignore
-		}
-
-		return undefined;
-	}
-
-	/*
-	private async commandboxView( commandPath: string, pack: string, resource: Uri | undefined ): Promise<BoxPackageInfo | undefined> {
-		return new Promise( ( resolve, _reject ) => {
-			const args = [ "show", "--json", pack ];
-			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile( commandPath, args, { cwd } ( error, stdout ) => {
-				if ( !error ) {
-					try {
-						resolve( JSON.parse( stdout ) as BoxPackageInfo );
-					} catch ( e ) {
-						// ignore
-					}
-				}
-				resolve( undefined );
-			} );
-		} );
-	}
-	*/
 
 	public async getInfoContribution( resource: Uri, location: Location ): Promise<MarkdownString[] | null> | null {
 		if ( ( location.matches( [ "dependencies", "*" ] ) || location.matches( [ "devDependencies", "*" ] ) ) ) {
