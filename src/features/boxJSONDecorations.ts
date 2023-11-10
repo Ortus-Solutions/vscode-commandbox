@@ -20,7 +20,7 @@ let drawnDecorations: Record<number, Decoration> = {};
 
 let forgeboxCache: Record<string, string> = {};
 
-const diffColors : Record<semver.ReleaseType,string> = {
+const darkThemeDefaults : Record<semver.ReleaseType,string> = {
     major: "red",
     premajor: "red",
     minor: "yellow",
@@ -28,6 +28,16 @@ const diffColors : Record<semver.ReleaseType,string> = {
     patch: "green",
     prepatch: "green",
     prerelease: "green"
+};
+
+const lightThemeDefaults : Record<semver.ReleaseType,string> = {
+    major: "darkred",
+    premajor: "darkred",
+    minor: "darkorange",
+    preminor: "darkorange",
+    patch: "darkgreen",
+    prepatch: "darkgreen",
+    prerelease: "darkgreen"
 };
 
 export async function decorateBoxJSON(textEditor: vscode.TextEditor | undefined) {
@@ -78,8 +88,9 @@ async function getDecoration( dependencyLine: DependencyLine ) : Promise<vscode.
     const diff = semver.diff( semver.minVersion( dependencyLine.currentVersion ), semver.minVersion( forgeBoxVersion ) );
 
     return {
+        light: { after: { color: getColor( diff, lightThemeDefaults ) } },
+        dark: { after: { color: getColor( diff, darkThemeDefaults ) } },
         after: {
-            color: diffColors[ diff ],
             margin: "2em",
             contentText: forgeBoxVersion
         }
@@ -174,4 +185,31 @@ function extractDependencyLines( textDocument, dependencyProperty ){
             currentVersion: dependency.value.value
         };
     });
+}
+
+function getColor( versionDiff: semver.ReleaseType, colorThemeDefaults ) : string {
+
+    if( versionDiff === 'major' || versionDiff === "premajor" ){
+        const colorOverride = vscode.workspace.getConfiguration( "commandbox.box" ).get<string | null>( "majorUpdateColor" );
+
+        if( colorOverride ){
+            return colorOverride;
+        }
+    }
+    else if( versionDiff === 'minor' || versionDiff === "preminor" ){
+        const colorOverride = vscode.workspace.getConfiguration( "commandbox.box" ).get<string | null>( "minorUpdateColor" );
+
+        if( colorOverride ){
+            return colorOverride;
+        }
+    }
+    else if( versionDiff === 'patch' || versionDiff === "prepatch" || versionDiff === "prerelease" ){
+        const colorOverride = vscode.workspace.getConfiguration( "commandbox.box" ).get<string | null>( "patchUpdateColor" );
+
+        if( colorOverride ){
+            return colorOverride;
+        }
+    }
+
+    return colorThemeDefaults[ versionDiff ] ? colorThemeDefaults[ versionDiff ] : "gray";
 }

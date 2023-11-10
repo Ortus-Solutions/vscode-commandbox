@@ -126,6 +126,21 @@ export async function activate( context: vscode.ExtensionContext ): Promise<void
 
 	context.subscriptions.push( vscode.window.onDidChangeActiveTextEditor( ( textEditor: vscode.TextEditor ) => decorateBoxJSON( textEditor ) ) );
 	context.subscriptions.push( vscode.window.onDidChangeActiveTextEditor( ( textEditor: vscode.TextEditor ) => decorateBoxJSON( textEditor ) ) );
+
+	let timeout = null;
+	context.subscriptions.push( vscode.workspace.onDidChangeTextDocument( ( event: vscode.TextDocumentChangeEvent ) => {
+		const textEditor = vscode.window.visibleTextEditors.find( te => te.document === event.document );
+
+		if( !textEditor ){
+			return;
+		}
+
+		clearTimeout(timeout)
+		timeout = setTimeout(() => {
+			decorateBoxJSON( textEditor );
+		}, 500)
+	}));
+
 	vscode.window.visibleTextEditors.forEach( (textEditor:vscode.TextEditor) => {
 		decorateBoxJSON( textEditor );
 	});

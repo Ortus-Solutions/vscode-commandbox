@@ -303,6 +303,24 @@
 					"description": "The URL for the ForgeBox endpoint. Customize for ForgeBox Enterprise.",
 					"default": "https://www.forgebox.io",
 					"scope": "window"
+				},
+				"commandbox.box.majorUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting major package updates",
+					"default": "",
+					"scope": "window"
+				},
+				"commandbox.box.minorUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting minor package updates",
+					"default": "",
+					"scope": "window"
+				},
+				"commandbox.box.patchUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting patch package updates",
+					"default": "",
+					"scope": "window"
 				}
 			}
 		},
