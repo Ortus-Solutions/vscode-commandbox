@@ -6,6 +6,7 @@ import { runSelectedScript, selectAndRunScriptFromFolder, turnAutoDetectOn } fro
 import { BoxScriptsTreeDataProvider } from "./commandboxView";
 import { invalidateTasksCache, BoxTaskProvider, hasBoxJson } from "./tasks";
 import { invalidateHoverScriptsCache, BoxScriptHoverProvider } from "./scriptHover";
+import { decorateBoxJSON } from "./features/boxJSONDecorations";
 
 let treeDataProvider: BoxScriptsTreeDataProvider | undefined;
 const octokit = new Octokit();
@@ -107,6 +108,8 @@ export async function activate( context: vscode.ExtensionContext ): Promise<void
 
 	registerScriptHoverProvider( context );
 
+
+
 	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.runSelectedScript", runSelectedScript ) );
 
 	if ( await hasBoxJson() ) {
@@ -120,6 +123,27 @@ export async function activate( context: vscode.ExtensionContext ): Promise<void
 	context.subscriptions.push( vscode.commands.registerCommand( "commandbox.refresh", () => {
 		invalidateScriptCaches();
 	} ) ) ;
+
+	context.subscriptions.push( vscode.window.onDidChangeActiveTextEditor( ( textEditor: vscode.TextEditor ) => decorateBoxJSON( textEditor ) ) );
+	context.subscriptions.push( vscode.window.onDidChangeActiveTextEditor( ( textEditor: vscode.TextEditor ) => decorateBoxJSON( textEditor ) ) );
+
+	let timeout = null;
+	context.subscriptions.push( vscode.workspace.onDidChangeTextDocument( ( event: vscode.TextDocumentChangeEvent ) => {
+		const textEditor = vscode.window.visibleTextEditors.find( te => te.document === event.document );
+
+		if( !textEditor ){
+			return;
+		}
+
+		clearTimeout(timeout)
+		timeout = setTimeout(() => {
+			decorateBoxJSON( textEditor );
+		}, 500)
+	}));
+
+	vscode.window.visibleTextEditors.forEach( (textEditor:vscode.TextEditor) => {
+		decorateBoxJSON( textEditor );
+	});
 }
 
 let taskProvider: BoxTaskProvider;

@@ -32,11 +32,13 @@
 		"@octokit/rest": "~19.0.4",
 		"jsonc-parser": "^3.2.0",
 		"micromatch": "~4.0.5",
-		"request-light": "^0.5.8"
+		"request-light": "^0.5.8",
+		"semver": "^7.5.4"
 	},
 	"devDependencies": {
 		"@types/micromatch": "4.0.2",
 		"@types/node": "~16.11.62",
+		"@types/semver": "^7.5.5",
 		"@types/vscode": "~1.66.0",
 		"@typescript-eslint/eslint-plugin": "^5.38.1",
 		"@typescript-eslint/parser": "^5.38.1",
@@ -300,6 +302,24 @@
 					"type": "string",
 					"description": "The URL for the ForgeBox endpoint. Customize for ForgeBox Enterprise.",
 					"default": "https://www.forgebox.io",
+					"scope": "window"
+				},
+				"commandbox.box.majorUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting major package updates",
+					"default": "",
+					"scope": "window"
+				},
+				"commandbox.box.minorUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting minor package updates",
+					"default": "",
+					"scope": "window"
+				},
+				"commandbox.box.patchUpdateColor": {
+					"type": "string",
+					"description": "The color to use for highlighting patch package updates",
+					"default": "",
 					"scope": "window"
 				}
 			}
